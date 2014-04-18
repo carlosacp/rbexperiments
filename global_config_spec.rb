@@ -1,41 +1,31 @@
-class Class
-  def included_modules
-    @included_modules ||= []
-  end
-  alias_method :old_new, :new
-  def new(*args, &block)
-    obj = old_new(*args, &block)
-    self.included_modules.each do |mod|
-      mod.initialize(obj) if mod.respond_to?(:initialize)
-    end
-    obj
-  end
-end
-
-module Initializable
-  def self.included(base)
-    base.extend ClassMethods
-  end
-  module ClassMethods
-    def included(base)
-      if base.class != Module
-        base.included_modules << self
-      end
-    end
-  end
-end
-
 module Configurable
   
-  include Initializable
+  def self.included(base)
+    base.class.__send__(:alias_method, :__configurable_original_new, :new)
+    base.extend ClassMethods
+  end
   
-  def self.initialize(obj)
-    obj.instance_variable_set(:@config, Configuration.new)
+  module ClassMethods
+    def __configurable_initialize(obj)
+      obj.instance_variable_set(:@config, Configuration.new)
+    end
+    def new(*args, &block)
+      obj = __configurable_original_new(*args, &block)
+      __configurable_initialize(obj)
+      obj
+    end    
+    
+    def configure
+      yield @config
+      @config
+    end
+    
   end
   
   def config
     @config
   end
+  
 end
 
 class Configuration
@@ -78,6 +68,10 @@ class Configuration
   
 end
 
+Configuration.configure do |config|
+  config.anything = "anything"
+end
+
 class SomeClass
   
   include Configurable
@@ -89,7 +83,19 @@ class SomeClass
 
 end
 
-describe "Configuring" do
+class AnotherClass
+  
+  include Configurable
+  
+  #defaults...
+  configure do |config|
+    config.anything = "something"
+  end  
+  
+end
+
+describe SomeClass do
+
   it "should have a default value if no config block is called" do
     a_instance = SomeClass.new
     a_instance.config.some_config.should == "default_value"
@@ -109,5 +115,18 @@ describe "Configuring" do
       config.some_config = "another_different_value"
     end
     a_instance.config.some_config.should == "other_value"
+  end
+  
+  it "should have a previous set default" do
+    a_instance = SomeClass.new
+    a_instance.config.anything.should == "anything"
+  end 
+end
+
+describe AnotherClass do
+  
+  it "should override a previous set default" do
+    a_instance = AnotherClass.new
+    a_instance.config.anything.should == "something"
   end 
 end
