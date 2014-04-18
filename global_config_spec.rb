@@ -1,3 +1,22 @@
+=begin
+
+	way to share globla configuration using include module
+
+	ex:
+	
+	Configuration.configure do |config|
+		config.some_config = :some
+	end
+
+	class MyClass
+		include Configurable
+	end
+
+
+	MyClass.new.some_config.should == :some
+
+=end
+
 module Configurable
   
   def self.included(base)
